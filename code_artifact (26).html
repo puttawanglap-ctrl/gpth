@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>เกมคำควบกล้ำหรรษา</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #87CEEB;
+            --secondary-bg: #4682B4;
+            --fish-orange: #FFB347;
+            --bubble-border: #00acc1;
+            --bubble-bg-start: #ffffff;
+            --bubble-bg-end: #e0f7fa;
+            --toolbar-height: 100px;
+        }
+
+        body {
+            font-family: 'Mali', cursive;
+            background: linear-gradient(180deg, var(--primary-bg) 0%, var(--secondary-bg) 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: pan-y; /* Allow vertical scrolling normally, handled locally during drag */
+            overflow-x: hidden;
+        }
+
+        /* Header & Fish Area */
+        .header-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 10px 10px 10px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .game-title {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 20px;
+            border-radius: 20px;
+            border: 2px solid white;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        /* Fish Character - Smaller and localized */
+        .fish-character {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            animation: swim-idle 3s ease-in-out infinite alternate;
+        }
+
+        @media (min-width: 768px) {
+            .fish-character {
+                width: 150px;
+                height: 150px;
+                position: absolute;
+                top: 20px;
+                left: 20px;
+            }
+            .header-section {
+                padding-top: 30px;
+            }
+        }
+
+        @keyframes swim-idle {
+            0% { transform: translateY(-5px) rotate(-2deg); }
+            100% { transform: translateY(5px) rotate(2deg); }
+        }
+
+        .fish-body {
+            background-color: var(--fish-orange);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            width: 100%;
+            height: 80%;
+            position: absolute;
+            top: 10%;
+            border: 3px solid #333;
+            box-shadow: inset -5px -5px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .fish-scales {
+            position: absolute;
+            right: 10%;
+            top: 20%;
+            width: 40%;
+            height: 60%;
+            background-image: radial-gradient(circle at 50% 50%, #FFD700 2px, transparent 3px);
+            background-size: 10px 10px;
+            opacity: 0.5;
+        }
+
+        .fish-tail {
+            position: absolute;
+            right: -15%;
+            top: 25%;
+            width: 30%;
+            height: 50%;
+            background-color: var(--fish-orange);
+            border: 3px solid #333;
+            border-radius: 10% 50% 50% 10%;
+            transform-origin: left center;
+            animation: tail-wag 0.5s infinite alternate;
+            z-index: -1;
+        }
+
+        @keyframes tail-wag {
+            from { transform: rotate(-15deg); }
+            to { transform: rotate(15deg); }
+        }
+
+        .fish-eye {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            border: 2px solid #333;
+        }
+        .eye-left {
+            width: 25px; height: 25px;
+            left: 20%; top: 20%;
+        }
+        .eye-right {
+            width: 30px; height: 30px;
+            left: 40%; top: 15%;
+            z-index: 2;
+        }
+        .pupil {
+            position: absolute;
+            width: 10px; height: 10px;
+            background: black;
+            border-radius: 50%;
+            right: 3px; top: 7px;
+        }
+        
+        .fish-mouth {
+            position: absolute;
+            width: 30px; height: 15px;
+            background: #8B0000;
+            border-radius: 0 0 30px 30px;
+            left: 15%; bottom: 20%;
+            border: 2px solid #333;
+            border-top: none;
+            overflow: hidden;
+        }
+
+        /* Game Area - Grid Layout */
+        #game-area {
+            flex-grow: 1;
+            padding: 10px 15px calc(var(--toolbar-height) + 20px) 15px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            z-index: 10;
+        }
+
+        .bubbles-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 640px) {
+            .bubbles-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 25px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .bubbles-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 30px;
+            }
+        }
+
+        /* Word Bubbles - Boxy instead of perfect circle for better text fit */
+        .word-bubble {
+            position: relative;
+            background: radial-gradient(ellipse at center, var(--bubble-bg-start), var(--bubble-bg-end));
+            border: 3px solid var(--bubble-border);
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 15px 10px;
+            font-size: clamp(1.2rem, 4vw, 1.8rem);
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15), inset -2px -2px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s ease-out;
+            min-height: 80px;
+            text-align: center;
+        }
+
+        .word-bubble::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            width: 30%;
+            height: 20%;
+            background: rgba(255,255,255,0.7);
+            border-radius: 10px;
+            filter: blur(1px);
+            pointer-events: none;
+        }
+
+        .word-text {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            line-height: 1.4;
+            width: 100%;
+        }
+
+        .word-bubble.dropzone-active {
+            transform: scale(1.05) translateY(-5px);
+            border-color: #00e676;
+            box-shadow: 0 10px 20px rgba(0, 230, 118, 0.4);
+            background: radial-gradient(ellipse at center, #ffffff, #b9f6ca);
+        }
+
+        .word-bubble.completed {
+            background: radial-gradient(ellipse at center, #ffffff, #ffe082);
+            border-color: #ffb300;
+            color: #d84315;
+            animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .word-bubble.wrong-shake {
+            animation: shake 0.4s;
+            border-color: #ff5252;
+            background: radial-gradient(ellipse at center, #ffffff, #ffcdd2);
+        }
+
+        @keyframes pop-in {
+            0% { transform: scale(0.9); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
+        /* Missing Letter Blank */
+        .blank-space {
+            display: inline-block;
+            min-width: 30px;
+            height: 1em;
+            border-bottom: 4px solid #ff9800; 
+            margin: 0 4px;
+            color: transparent;
+            transition: all 0.3s;
+            text-align: center;
+            vertical-align: bottom;
+            position: relative;
+            top: -5px;
+        }
+        
+        .completed .blank-space {
+            color: #d84315;
+            border-bottom-color: transparent;
+            min-width: auto;
+            top: 0;
+        }
+
+        /* Special multi-line text (ขรุขระ) */
+        .special-multi {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.1;
+        }
+
+        /* Draggable Letters Toolbar */
+        #toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: var(--toolbar-height);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 3px solid #ffb300;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 25px;
+            padding: 10px;
+            z-index: 100;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.15);
+        }
+
+        .draggable-letter {
+            width: 70px;
+            height: 70px;
+            background: white;
+            border: 4px solid #ff9800;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #f57c00;
+            cursor: grab;
+            box-shadow: 0 6px 0 #e65100, 0 8px 10px rgba(0,0,0,0.2);
+            transition: transform 0.1s, box-shadow 0.1s;
+            touch-action: none;
+            position: relative;
+        }
+
+        @media (max-width: 350px) {
+            .draggable-letter {
+                width: 60px;
+                height: 60px;
+                font-size: 2rem;
+                gap: 15px;
+            }
+        }
+
+        .draggable-letter:active, .draggable-letter.is-dragging {
+            cursor: grabbing;
+            box-shadow: 0 2px 0 #e65100, 0 3px 5px rgba(0,0,0,0.2);
+        }
+        
+        /* Dragged Clone - Uses absolute positioning based on document */
+        .dragged-clone {
+            position: absolute !important;
+            z-index: 9999 !important;
+            pointer-events: none !important;
+            opacity: 0.9;
+            transform-origin: center center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3) !important;
+        }
+
+        /* Success Overlay */
+        #success-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+
+        #success-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .success-box {
+            background: white;
+            padding: 30px;
+            border-radius: 25px;
+            text-align: center;
+            transform: scale(0.8) translateY(50px);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 6px solid #ffca28;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+            width: 90%;
+            max-width: 400px;
+        }
+
+        #success-overlay.show .success-box {
+            transform: scale(1) translateY(0);
+        }
+
+        .btn-restart {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 1.4rem;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #2e7d32;
+            transition: all 0.1s;
+            font-family: inherit;
+            width: 100%;
+        }
+
+        .btn-restart:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #2e7d32;
+        }
+
+        /* Vowel Positioning Adjustments */
+        .vowel-top { position: absolute; top: -0.7em; left: 50%; transform: translateX(-50%); }
+        .vowel-bottom { position: absolute; bottom: -0.8em; left: 50%; transform: translateX(-50%); }
+        .char-container { display: inline-block; position: relative; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <div class="game-title">เติมคำควบกล้ำ</div>
+        
+        <!-- Fish Character -->
+        <div class="fish-character">
+            <div class="fish-tail"></div>
+            <div class="fish-body">
+                <div class="fish-scales"></div>
+                <div class="fish-eye eye-left"><div class="pupil"></div></div>
+                <div class="fish-eye eye-right"><div class="pupil"></div></div>
+                <div class="fish-mouth"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <div id="game-area">
+        <div class="bubbles-grid" id="bubbles-container">
+            <!-- Bubbles generated by JS -->
+        </div>
+    </div>
+
+    <!-- Drag Tools Area -->
+    <div id="toolbar">
+        <div class="draggable-letter" data-letter="ร">ร</div>
+        <div class="draggable-letter" data-letter="ล">ล</div>
+        <div class="draggable-letter" data-letter="ว">ว</div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-overlay">
+        <div class="success-box">
+            <h1 class="text-3xl md:text-5xl font-bold text-yellow-500 mb-2" style="text-shadow: 2px 2px 0 #333;">ยอดเยี่ยม!</h1>
+            <p class="text-lg md:text-xl text-gray-700 mb-4">คุณตอบถูกครบทุกคำในรอบนี้แล้ว</p>
+            
+            <!-- กล่องแสดงคะแนนสะสมที่เพิ่มความโดดเด่น -->
+            <div class="bg-blue-50 rounded-xl p-4 mb-6 border-2 border-blue-200 shadow-inner">
+                <p class="text-md text-blue-800 mb-1">ตอนนี้คุณสะสมคำศัพท์ได้ทั้งหมด</p>
+                <p id="progress-text" class="text-4xl font-bold text-blue-600" style="text-shadow: 1px 1px 0px rgba(0,0,0,0.1);"></p>
+            </div>
+
+            <button class="btn-restart" onclick="initGame()">เล่นรอบต่อไป</button>
+            <button id="btn-report" class="hidden mt-4 w-full py-3 px-6 text-lg bg-blue-500 text-white border-none rounded-xl cursor-pointer" onclick="printReport()" style="box-shadow: 0 5px 0 #1565C0;">พิมพ์รายงาน (PDF)</button>
+        </div>
+    </div>
+
+<script>
+    // Expanded Game Data (Base set, multiplied in init)
+    const baseWordsData = [
+        { word: 'เพลง', prefix: 'เพ', suffix: 'ง', answer: 'ล' },
+        { word: 'พระ', prefix: 'พ', suffix: 'ะ', answer: 'ร' },
+        { word: 'ปลูก', prefix: 'ป', suffix: 'ก', answer: 'ล', hasVowelUnder: true, vowelUnder: 'ู' },
+        { word: 'ควาย', prefix: 'ค', suffix: 'าย', answer: 'ว' },
+        { word: 'กวาง', prefix: 'ก', suffix: 'าง', answer: 'ว' },
+        { word: 'ขรุขระ', prefix: 'ข', suffix: 'ข...ะ', answer: 'ร', isSpecialMulti: true },
+        { word: 'เปรี้ยว', prefix: 'เป', suffix: 'ี้ยว', answer: 'ร' },
+        { word: 'ตรวจ', prefix: 'ต', suffix: 'วจ', answer: 'ร' },
+        { word: 'โกรธ', prefix: 'โก', suffix: 'ธ', answer: 'ร' },
+        { word: 'กล้วย', prefix: 'ก', suffix: 'วย', answer: 'ล', hasVowelTop: true, vowelTop: '้' },
+        { word: 'กราบ', prefix: 'ก', suffix: 'าบ', answer: 'ร' },
+        { word: 'คลาน', prefix: 'ค', suffix: 'าน', answer: 'ล' },
+        { word: 'กวาด', prefix: 'ก', suffix: 'าด', answer: 'ว' },
+        { word: 'ปรับ', prefix: 'ป', suffix: 'ับ', answer: 'ร' },
+        { word: 'เปลี่ยน', prefix: 'เป', suffix: 'ี่ยน', answer: 'ล' },
+        { word: 'ขว้าง', prefix: 'ข', suffix: '้าง', answer: 'ว' },
+        { word: 'พร้อม', prefix: 'พ', suffix: '้อม', answer: 'ร' },
+        { word: 'คลุม', prefix: 'ค', suffix: 'ม', answer: 'ล', hasVowelUnder: true, vowelUnder: 'ุ' },
+        { word: 'แขวน', prefix: 'แ', prefix2: 'ข', suffix: 'น', answer: 'ว', isSplitPrefix: true },
+        { word: 'ตรง', prefix: 'ต', suffix: 'ง', answer: 'ร' },
+        { word: 'กลม', prefix: 'ก', suffix: 'ม', answer: 'ล' },
+        { word: 'คว้า', prefix: 'ค', suffix: '้า', answer: 'ว' },
+        { word: 'พริก', prefix: 'พ', suffix: 'ก', answer: 'ร', hasVowelTop: true, vowelTop: 'ิ' },
+        { word: 'กล้อง', prefix: 'ก', suffix: '้อง', answer: 'ล' },
+        { word: 'แกว่ง', prefix: 'แ', prefix2: 'ก', suffix: '่ง', answer: 'ว', isSplitPrefix: true }
+    ];
+
+    let allWordsDatabase = [];
+    // Generate ~500 words for demonstration
+    for(let i=0; i < 20; i++) {
+        allWordsDatabase = allWordsDatabase.concat([...baseWordsData].map(obj => ({...obj})));
+    }
+
+    let wordsData = [];
+    let completedCount = 0;
+    let totalScoreProgress = 0;
+    const WORDS_PER_GAME = 10;
+    const SCORE_FOR_REPORT = 50;
+    
+    const bubblesContainer = document.getElementById('bubbles-container');
+    const draggables = document.querySelectorAll('.draggable-letter');
+    const successOverlay = document.getElementById('success-overlay');
+    const btnReport = document.getElementById('btn-report');
+    const progressText = document.getElementById('progress-text');
+
+    // --- ระบบเสียง (Audio System ด้วย Tone.js) ---
+    let toneStarted = false;
+    let correctSynth, wrongSynth, winSynth;
+
+    async function initAudio() {
+        if (!toneStarted) {
+            await Tone.start(); // ขออนุญาตบราวเซอร์เปิดระบบเสียง
+            
+            // ตั้งค่าเสียงตอนตอบถูก (เสียงใสๆ คล้ายระฆัง)
+            correctSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" },
+                envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.5 }
+            }).toDestination();
+            correctSynth.volume.value = -5;
+
+            // ตั้งค่าเสียงตอนตอบผิด (เสียงต่ำๆ ทุ้มๆ)
+            wrongSynth = new Tone.Synth({
+                oscillator: { type: "sawtooth" },
+                envelope: { attack: 0.05, decay: 0.2, sustain: 0.1, release: 0.2 }
+            }).toDestination();
+            wrongSynth.volume.value = -10;
+
+            // ตั้งค่าเสียงเพลงตอนจบเกม (เสียงประสาน)
+            winSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.05, decay: 0.2, sustain: 0.2, release: 1 }
+            }).toDestination();
+            winSynth.volume.value = -5;
+
+            toneStarted = true;
+        }
+    }
+
+    function playCorrectSound() {
+        if(!toneStarted) return;
+        const now = Tone.now();
+        correctSynth.triggerAttackRelease(["C5", "E5"], "8n", now);
+        correctSynth.triggerAttackRelease(["G5", "C6"], "8n", now + 0.1);
+    }
+
+    function playWrongSound() {
+        if(!toneStarted) return;
+        wrongSynth.triggerAttackRelease("D3", "8n");
+    }
+
+    function playWinSound() {
+        if(!toneStarted) return;
+        const now = Tone.now();
+        winSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
+        winSynth.triggerAttackRelease(["F4", "A4", "C5"], "8n", now + 0.2);
+        winSynth.triggerAttackRelease(["G4", "B4", "D5"], "8n", now + 0.4);
+        winSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "2n", now + 0.6);
+    }
+
+    // --- ระบบเสียงอ่านคำ (Text-to-Speech) ---
+    function speakWord(word) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // หยุดเสียงที่อาจจะค้างอยู่
+            const utterance = new SpeechSynthesisUtterance(word);
+            utterance.lang = 'th-TH'; // ตั้งค่าเป็นภาษาไทย
+            utterance.rate = 0.85; // ปรับความเร็วให้อ่านช้าลงนิดหน่อยเพื่อให้เด็กฟังชัดเจน
+            utterance.pitch = 1.1; // ปรับเสียงให้ดูสดใสขึ้นเล็กน้อย
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+    // ----------------------------------------
+
+    let draggedClone = null;
+    let activeDropzone = null;
+    let dragStartX = 0, dragStartY = 0;
+    let initialCloneX = 0, initialCloneY = 0;
+
+    function initGame() {
+        completedCount = 0;
+        successOverlay.classList.remove('show');
+        bubblesContainer.innerHTML = '';
+        btnReport.classList.add('hidden');
+        
+        // Shuffle and pick 10 words
+        let tempDb = [...allWordsDatabase];
+        for (let i = tempDb.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [tempDb[i], tempDb[j]] = [tempDb[j], tempDb[i]];
+        }
+        wordsData = tempDb.slice(0, WORDS_PER_GAME);
+
+        wordsData.forEach((item, index) => {
+            const bubble = document.createElement('div');
+            bubble.className = 'word-bubble';
+            bubble.dataset.answer = item.answer;
+            bubble.dataset.index = index;
+            
+            let innerHTML = '';
+            
+            if (item.isSpecialMulti) {
+                // ขรุขระ
+                innerHTML = `<span class="word-text special-multi">
+                                <span>ข<span class="blank-space"></span>ุ</span>
+                                <span>ข<span class="blank-space"></span>ะ</span>
+                             </span>`;
+            } else if (item.isSplitPrefix) {
+                // แขวน, แกว่ง
+                innerHTML = `<span class="word-text">${item.prefix}${item.prefix2}<span class="blank-space"></span>${item.suffix}</span>`;
+            } else {
+                // Standard formatting with robust vowel placement
+                let p = `<span class="char-container">${item.prefix}`;
+                if(item.hasVowelTop) p += `<span class="vowel-top">${item.vowelTop}</span>`;
+                p += `</span>`;
+                
+                let s = `<span class="char-container">`;
+                if(item.hasVowelUnder) s += `<span class="vowel-bottom">${item.vowelUnder}</span>`;
+                s += `${item.suffix}</span>`;
+                
+                // For suffix that doesn't start with a consonant properly, simplify rendering
+                if(item.hasVowelUnder && item.suffix.length > 0) {
+                     s = `<span class="char-container" style="display:inline-block; width:0; position:relative; right:8px;"><span class="vowel-bottom">${item.vowelUnder}</span></span>${item.suffix}`;
+                }
+
+                innerHTML = `<span class="word-text">${p}<span class="blank-space"></span>${item.hasVowelUnder ? s : item.suffix}</span>`;
+            }
+
+            bubble.innerHTML = innerHTML;
+            bubblesContainer.appendChild(bubble);
+        });
+    }
+
+    draggables.forEach(draggable => {
+        draggable.addEventListener('touchstart', handleDragStart, {passive: false});
+        draggable.addEventListener('mousedown', handleDragStart);
+    });
+
+    document.addEventListener('touchmove', handleDragMove, {passive: false});
+    document.addEventListener('mousemove', handleDragMove);
+    
+    document.addEventListener('touchend', handleDragEnd);
+    document.addEventListener('mouseup', handleDragEnd);
+
+    function getPointerEvent(e) {
+        return e.type.includes('touch') ? e.touches[0] : e;
+    }
+
+    function handleDragStart(e) {
+        initAudio(); // โหลดและเปิดระบบเสียงเมื่อผู้เล่นเริ่มแตะหน้าจอครั้งแรก
+        
+        // Only prevent default if we are dragging the letter (allows scrolling otherwise)
+        if (e.cancelable && e.type.includes('touch')) {
+            e.preventDefault(); 
+        }
+        
+        const target = e.target.closest('.draggable-letter');
+        if (!target) return;
+
+        const pEvent = getPointerEvent(e);
+        dragStartX = pEvent.clientX;
+        dragStartY = pEvent.clientY;
+
+        // Create Clone
+        draggedClone = target.cloneNode(true);
+        draggedClone.classList.add('dragged-clone');
+        draggedClone.style.width = `${target.offsetWidth}px`;
+        draggedClone.style.height = `${target.offsetHeight}px`;
+        
+        // Append to body to ensure it sits on top of everything
+        document.body.appendChild(draggedClone);
+
+        // Calculate absolute position
+        const rect = target.getBoundingClientRect();
+        initialCloneX = rect.left + window.scrollX;
+        initialCloneY = rect.top + window.scrollY;
+
+        updateClonePosition(initialCloneX, initialCloneY);
+        
+        // Hide original slightly
+        target.style.opacity = '0.5';
+        draggedClone.dataset.originId = target.dataset.letter;
+    }
+
+    function handleDragMove(e) {
+        if (!draggedClone) return;
+        
+        if (e.cancelable) e.preventDefault(); // Stop scrolling while dragging
+
+        const pEvent = getPointerEvent(e);
+        const deltaX = pEvent.clientX - dragStartX;
+        const deltaY = pEvent.clientY - dragStartY;
+
+        // Calculate center of the clone based on pointer
+        const cloneWidth = draggedClone.offsetWidth;
+        const cloneHeight = draggedClone.offsetHeight;
+        
+        // Move clone relative to its starting position + mouse delta
+        const currentX = initialCloneX + deltaX;
+        const currentY = initialCloneY + deltaY;
+
+        updateClonePosition(currentX, currentY);
+        
+        // Check intersections based on pointer location
+        checkIntersection(pEvent.clientX, pEvent.clientY);
+    }
+
+    function updateClonePosition(x, y) {
+        draggedClone.style.left = `${x}px`;
+        draggedClone.style.top = `${y}px`;
+    }
+
+    function checkIntersection(x, y) {
+        // Find element under pointer
+        const elem = document.elementFromPoint(x, y);
+        const bubble = elem ? elem.closest('.word-bubble:not(.completed)') : null;
+
+        if (activeDropzone && activeDropzone !== bubble) {
+            activeDropzone.classList.remove('dropzone-active');
+        }
+
+        if (bubble) {
+            bubble.classList.add('dropzone-active');
+            activeDropzone = bubble;
+        } else {
+            activeDropzone = null;
+        }
+    }
+
+    function handleDragEnd(e) {
+        if (!draggedClone) return;
+
+        const originLetter = draggedClone.dataset.originId;
+        
+        // Restore original tool
+        const originalTool = document.querySelector(`.draggable-letter[data-letter="${originLetter}"]`);
+        if (originalTool) originalTool.style.opacity = '1';
+
+        if (activeDropzone) {
+            const correctAnswer = activeDropzone.dataset.answer;
+            if (originLetter === correctAnswer) {
+                processCorrectMatch(activeDropzone, originLetter);
+            } else {
+                processWrongMatch(activeDropzone);
+            }
+            activeDropzone.classList.remove('dropzone-active');
+            activeDropzone = null;
+        }
+
+        // Cleanup
+        draggedClone.remove();
+        draggedClone = null;
+    }
+
+    function processCorrectMatch(bubble, letter) {
+        playCorrectSound(); // เล่นเสียงเมื่อตอบถูก
+        
+        bubble.classList.add('completed');
+        totalScoreProgress++;
+        completedCount++;
+        
+        const index = bubble.dataset.index;
+        const item = wordsData[index];
+
+        // Format correct answer text based on type
+        if (item.isSpecialMulti) {
+            bubble.innerHTML = `<span class="word-text special-multi">
+                                <span>ข<span class="text-orange-600 font-bold px-1">${letter}</span>ุ</span>
+                                <span>ข<span class="text-orange-600 font-bold px-1">${letter}</span>ะ</span>
+                             </span>`;
+        } else if (item.isSplitPrefix) {
+             bubble.innerHTML = `<span class="word-text">${item.prefix}${item.prefix2}<span class="text-orange-600 font-bold mx-1">${letter}</span>${item.suffix}</span>`;
+        } else {
+             // For standard format, rebuild carefully
+             let p = `<span class="char-container">${item.prefix}`;
+             if(item.hasVowelTop) p += `<span class="vowel-top">${item.vowelTop}</span>`;
+             p += `</span>`;
+             
+             let s = `<span class="char-container">`;
+             if(item.hasVowelUnder) s += `<span class="vowel-bottom">${item.vowelUnder}</span>`;
+             s += `${item.suffix}</span>`;
+             
+             if(item.hasVowelUnder && item.suffix.length > 0) {
+                 s = `<span class="char-container" style="display:inline-block; width:0; position:relative; right:8px;"><span class="vowel-bottom">${item.vowelUnder}</span></span>${item.suffix}`;
+             }
+
+             bubble.innerHTML = `<span class="word-text">${p}<span class="text-orange-600 font-bold mx-1">${letter}</span>${item.hasVowelUnder ? s : item.suffix}</span>`;
+        }
+
+        // --- เริ่มอ่านออกเสียงและตั้งค่าให้กดฟังซ้ำได้ ---
+        // หน่วงเวลาเล็กน้อยให้เสียงเอฟเฟกต์ (Correct Sound) เล่นก่อนค่อยอ่านคำ
+        setTimeout(() => speakWord(item.word), 400); 
+        
+        // ทำให้ผู้เล่นสามารถคลิกที่ฟองสบู่เพื่อฟังคำนั้นซ้ำได้
+        bubble.style.cursor = 'pointer';
+        bubble.title = 'คลิกเพื่อฟังเสียงอีกครั้ง';
+        
+        // ลบ Event Listener เก่าออกก่อนเพื่อป้องกันการซ้อนทับ (ถ้ามี) แล้วใส่เข้าไปใหม่
+        bubble.onclick = function() {
+            speakWord(item.word);
+            // เพิ่มเอฟเฟกต์เด้งดึ๋งเล็กน้อยเวลากดฟังซ้ำ
+            this.style.transform = 'scale(0.95)';
+            setTimeout(() => this.style.transform = 'scale(1)', 100);
+        };
+        // --------------------------------------------
+
+        if (completedCount >= WORDS_PER_GAME) {
+            setTimeout(showSuccess, 1500); // เพิ่มเวลาหน่วงก่อนโชว์กล่องสำเร็จ เพื่อให้อ่านคำสุดท้ายจบก่อน
+        }
+    }
+
+    function processWrongMatch(bubble) {
+        playWrongSound(); // เล่นเสียงเมื่อตอบผิด
+        
+        bubble.classList.add('wrong-shake');
+        setTimeout(() => bubble.classList.remove('wrong-shake'), 400);
+    }
+
+    function showSuccess() {
+        playWinSound(); // เล่นเสียงแสดงความยินดีเมื่อจบเกม
+        
+        successOverlay.classList.add('show');
+        // อัปเดตข้อความในกล่องคะแนนสะสมให้เห็นตัวเลขชัดๆ
+        progressText.innerHTML = `${totalScoreProgress} <span class="text-2xl">คำ</span>`;
+        
+        if (totalScoreProgress >= SCORE_FOR_REPORT && (totalScoreProgress % SCORE_FOR_REPORT < WORDS_PER_GAME)) {
+            // Show report button when hitting milestones (50, 100, etc.)
+            // The modulo logic ensures it shows when recently passed the milestone
+            btnReport.classList.remove('hidden');
+        }
+    }
+
+    function printReport() {
+        const printWindow = window.open('', '_blank');
+        const date = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html lang="th">
+            <head>
+                <meta charset="UTF-8">
+                <title>รายงานความก้าวหน้า</title>
+                <style>
+                    body { font-family: 'Sarabun', sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+                    .container { max-width: 800px; margin: 0 auto; border: 2px solid #4682B4; padding: 30px; border-radius: 10px; }
+                    h1 { color: #4682B4; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+                    .stat-box { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; }
+                    .score { font-size: 3rem; color: #E65100; font-weight: bold; }
+                    .footer { text-align: center; margin-top: 40px; font-size: 0.9em; color: #666; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>รายงานผลการฝึกทักษะ คำควบกล้ำ</h1>
+                    <p style="text-align: right;">วันที่พิมพ์: ${date}</p>
+                    <div class="stat-box">
+                        <p style="font-size: 1.2rem;">จำนวนคำศัพท์ที่ตอบถูกต้องสะสม</p>
+                        <div class="score">${totalScoreProgress}</div>
+                        <p>คำ</p>
+                    </div>
+                    <p style="text-align: center; font-size: 1.2rem;">เกณฑ์การประเมิน: <strong>ผ่านยอดเยี่ยม</strong></p>
+                    
+                    <div class="footer">
+                        <button class="no-print" onclick="window.print()" style="padding: 10px 20px; font-size: 1rem; cursor: pointer; background: #4682B4; color: white; border: none; border-radius: 5px;">สั่งพิมพ์เอกสาร</button>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
+    }
+
+    window.onload = initGame;
+</script>
+</body>
+</html>
